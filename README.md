@@ -12,3 +12,4 @@ Various Mods for Spelunky 2
 
 * [Poison Run](https://spelunky.fyi/mods/m/poison-run/) - You're always poisoned. Can you survive?
 * [The Floor is Lava](https://spelunky.fyi/mods/m/the-floor-is-lava/) - Don't stay in one spot for too long, or you might just get burned...
+* [Minimoose Frend](https://spelunky.fyi/mods/m/minimoose-frend/) - Adds a minimoose that follows you around
