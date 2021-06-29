@@ -1,3 +1,5 @@
+local math = require("math")
+
 meta.name = "The Floor is Lava"
 meta.version = "0.1"
 meta.description = "All floor tiles become lava shortly after standing on them"
@@ -5,6 +7,8 @@ meta.author = "garebear"
 
 TILES = {}
 DEFAULT_LAVA_TIMER = 60 * 2
+PARTICLE_DELAY = 15
+SAFE_FLOOR = nil
 
 register_option_int(
     "lava_timer",
@@ -13,8 +17,23 @@ register_option_int(
     60 * 1,
     60 * 5
 )
+register_option_bool(
+    "safe_platform",
+    "Provide a safety platform",
+    false
+)
 
-function make_tile_lava(uid)
+
+
+function clamp(n, low, high)
+    return math.min(math.max(n, low), high)
+end
+
+function get_particle_timeout()
+    return clamp(options.lava_timer - PARTICLE_DELAY, 0, options.lava_timer)
+end
+
+function test_and_get_floor_entity(uid)
     -- Outstanding callback from previous level, just early exit.
     if TILES[uid] == nil then
         return
@@ -30,8 +49,26 @@ function make_tile_lava(uid)
         return
     end
 
+    return entity
+end
+
+function emit_particles(uid)
+    local entity = test_and_get_floor_entity(uid)
+    if entity == nil then
+        return
+    end
+
+    generate_particles(PARTICLEEMITTER.EXPLOSION_SPARKS, uid)
+end
+
+function make_tile_lava(uid)
+    local entity = test_and_get_floor_entity(uid)
+    if entity == nil then
+        return
+    end
+
     kill_entity(uid)
-    spawn_liquid(ENT_TYPE.LIQUID_LAVA, entity.x, entity.y)
+    spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, entity.x, entity.y)
 end
 
 function maybe_schedule_lava(player)
@@ -41,11 +78,15 @@ function maybe_schedule_lava(player)
     end
     
     -- Not standing on anything
-    if player.standing_on_uid == 0 then
+    if player.standing_on_uid <= 0 then
         return
     end
-    
+
     local standing_uid = player.standing_on_uid
+    if options.safe_platform and standing_uid == SAFE_FLOOR then
+        return
+    end
+
     local standing_entity = get_entity(standing_uid)
 
     -- Didn't get an entity back
@@ -57,9 +98,17 @@ function maybe_schedule_lava(player)
         return
     end
 
-    TILES[standing_uid] = set_timeout(function()
+    local callbacks = {}
+
+    table.insert(callbacks, set_timeout(function()
+        emit_particles(standing_uid)
+    end, get_particle_timeout()))
+
+    table.insert(callbacks, set_timeout(function()
         make_tile_lava(standing_uid)
-    end, options.lava_timer)
+    end, options.lava_timer))
+
+    TILES[standing_uid] = callbacks
 end 
 
 function is_floor(entity)
@@ -70,6 +119,12 @@ end
 set_callback(function()
     -- Clear any outstanding callbacks
     TILES = {}
+
+    for _, player in ipairs(players) do
+        if player ~= nil then
+            SAFE_FLOOR = player.standing_on_uid
+        end
+    end
 end, ON.LEVEL)
 
 set_callback(function()
