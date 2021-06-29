@@ -1,5 +1,5 @@
 meta.name = "The Floor is Lava"
-meta.version = "0.3"
+meta.version = "0.4"
 meta.description = "All floor tiles become lava shortly after standing on them"
 meta.author = "garebear"
 
@@ -20,7 +20,6 @@ register_option_bool(
     "Provide a safety platform",
     false
 )
-
 
 
 function clamp(n, low, high)
@@ -74,7 +73,23 @@ function make_tile_lava(uid)
     spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, x, y)
 end
 
+function get_player_or_mount(player)
+    overlay = player.overlay
+    if overlay == nil then
+        return player
+    end
+
+    if overlay.type.search_flags & MASK.MOUNT == 0 then
+        return player
+    end
+
+    local mount = overlay:as_mount()
+    return mount
+end
+
 function maybe_schedule_lava(player)
+    local player = get_player_or_mount(player)
+
     -- Already scheduled lava-ing
     if TILES[player.standing_on_uid] ~= nil then
         return
@@ -98,6 +113,10 @@ function maybe_schedule_lava(player)
     end
 
     if not is_floor(standing_entity) then
+        return
+    end
+
+    if standing_entity.type.id == ENT_TYPE.FLOOR_DOOR_PLATFORM then
         return
     end
 
