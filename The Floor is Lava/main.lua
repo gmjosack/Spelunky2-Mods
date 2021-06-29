@@ -1,5 +1,5 @@
 meta.name = "The Floor is Lava"
-meta.version = "0.2"
+meta.version = "0.3"
 meta.description = "All floor tiles become lava shortly after standing on them"
 meta.author = "garebear"
 
