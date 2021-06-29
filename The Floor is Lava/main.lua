@@ -1,5 +1,3 @@
-local math = require("math")
-
 meta.name = "The Floor is Lava"
 meta.version = "0.2"
 meta.description = "All floor tiles become lava shortly after standing on them"
@@ -67,8 +65,13 @@ function make_tile_lava(uid)
         return
     end
 
+    local x, y, layer = get_position(uid)
+
     kill_entity(uid)
-    spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, entity.x, entity.y)
+    if layer == LAYER.BACK then
+        return
+    end
+    spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, x, y)
 end
 
 function maybe_schedule_lava(player)
