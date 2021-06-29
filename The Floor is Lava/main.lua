@@ -8,6 +8,24 @@ DEFAULT_LAVA_TIMER = 60 * 2
 PARTICLE_DELAY = 15
 SAFE_FLOOR = nil
 
+UNSAFE_FLOORS = {
+    [ENT_TYPE.FLOOR_GENERIC] = true,
+    [ENT_TYPE.FLOOR_SURFACE] = true,
+    [ENT_TYPE.FLOOR_SURFACE_HIDDEN] = true,
+    [ENT_TYPE.FLOORSTYLED_STONE] = true,
+    [ENT_TYPE.FLOORSTYLED_TEMPLE] = true,
+    [ENT_TYPE.FLOORSTYLED_PAGODA] = true,
+    [ENT_TYPE.FLOORSTYLED_BABYLON] = true,
+    [ENT_TYPE.FLOORSTYLED_SUNKEN] = true,
+    [ENT_TYPE.FLOORSTYLED_BEEHIVE] = true,
+    [ENT_TYPE.FLOORSTYLED_VLAD] = true,
+    [ENT_TYPE.FLOORSTYLED_COG] = true,
+    [ENT_TYPE.FLOORSTYLED_MOTHERSHIP] = true,
+    [ENT_TYPE.FLOORSTYLED_DUAT] = true,
+    [ENT_TYPE.FLOORSTYLED_PALACE] = true,
+    [ENT_TYPE.FLOORSTYLED_GUTS] = true,
+}
+
 register_option_int(
     "lava_timer",
     "Frames before floor tile turns to lava.",
@@ -66,11 +84,15 @@ function make_tile_lava(uid)
 
     local x, y, layer = get_position(uid)
 
-    kill_entity(uid)
-    if layer == LAYER.BACK then
-        return
+    if state.theme == THEME.OLMEC or state.theme == THEME.TIAMAT then
+        spawn_entity(ENT_TYPE.FX_EXPLOSION, x, y, layer, 0, 0)
+    else
+        kill_entity(uid)
+        if layer == LAYER.BACK then
+            return
+        end
+        spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, x, y)
     end
-    spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, x, y)
 end
 
 function get_player_or_mount(player)
@@ -134,8 +156,7 @@ function maybe_schedule_lava(player)
 end 
 
 function is_floor(entity)
-    local floor_mask = MASK.FLOOR
-    return (entity.type.search_flags & floor_mask) ~= 0
+    return UNSAFE_FLOORS[entity.type.id] ~= nil
 end
 
 set_callback(function()
@@ -153,6 +174,17 @@ set_callback(function()
     for _, player in ipairs(players) do
         if player ~= nil then
             maybe_schedule_lava(player)
+        end
+    end
+
+    -- Ice Caves
+    if state.world == 5 then
+        lavas = get_entities_by_mask(MASK.LAVA)
+        for _, lava in ipairs(lavas) do
+            local x, y, _ = get_position(lava)
+            if y < 1 then
+                kill_entity(lava)
+            end
         end
     end
 end, ON.FRAME)
