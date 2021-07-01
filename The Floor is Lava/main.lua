@@ -103,7 +103,15 @@ function test_and_get_floor_entity(uid)
     return entity
 end
 
+function is_level()
+    return state.screen == 12 and state.screen_next == 12
+end
+
 function emit_particles(uid)
+    if not is_level() then
+        return
+    end
+
     local entity = test_and_get_floor_entity(uid)
     if entity == nil then
         return
@@ -129,6 +137,10 @@ function bomb_or_break(uid, x, y, layer, should_bomb)
 end
 
 function make_tile_lava(uid)
+    if not is_level() then
+        return
+    end
+
     local entity = test_and_get_floor_entity(uid)
     if entity == nil then
         return
@@ -251,7 +263,7 @@ end, ON.LEVEL)
 function clean_up_lava(lava_uid, exit_uids)
     if state.world == 5 then
         local x, y, _ = get_position(lava_uid)
-        if y < 1 then
+        if y < 5 then
             kill_entity(lava_uid)
         end
     end
@@ -283,3 +295,8 @@ set_callback(function()
     end
 
 end, ON.FRAME)
+
+-- Boulder doesn't like hitting lava
+set_pre_entity_spawn(function(ent_type, x, y, l, overlay)
+    return spawn(ENT_TYPE.ITEM_ROCK, x, y, l, 0, 0)
+end, SPAWN_TYPE.ANY, 0, ENT_TYPE.ACTIVEFLOOR_BOULDER)
