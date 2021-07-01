@@ -60,6 +60,11 @@ register_option_bool(
     true
 )
 register_option_bool(
+    "safe_sunken",
+    "Sunken Stone is Safe",
+    true
+)
+register_option_bool(
     "safe_pagodas",
     "Pagodas are Safe",
     true
@@ -223,6 +228,10 @@ function maybe_schedule_lava(player)
     end
 
     if options.safe_pagodas and standing_entity.type.id == ENT_TYPE.FLOORSTYLED_PAGODA then
+        return
+    end
+
+    if options.safe_sunken and standing_entity.type.id == ENT_TYPE.FLOORSTYLED_SUNKEN then
         return
     end
 
