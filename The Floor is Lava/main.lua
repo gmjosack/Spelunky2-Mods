@@ -1,5 +1,5 @@
 meta.name = "The Floor is Lava"
-meta.version = "0.4"
+meta.version = "0.5"
 meta.description = "All floor tiles become lava shortly after standing on them"
 meta.author = "garebear"
 
@@ -9,6 +9,7 @@ PARTICLE_DELAY = 15
 SAFE_FLOOR = nil
 
 UNSAFE_FLOORS = {
+    [ENT_TYPE.FLOORSTYLED_MINEWOOD] = true,
     [ENT_TYPE.FLOOR_GENERIC] = true,
     [ENT_TYPE.FLOOR_SURFACE] = true,
     [ENT_TYPE.FLOOR_SURFACE_HIDDEN] = true,
@@ -34,9 +35,44 @@ register_option_int(
     60 * 5
 )
 register_option_bool(
+    "thicc_lava",
+    "Use Thicc Lava",
+    true
+)
+register_option_bool(
+    "bomb_olmec",
+    "Olmec is Bombs",
+    true
+)
+register_option_bool(
+    "bomb_tiamat",
+    "Tiamat is Bombs",
+    true
+)
+register_option_bool(
     "safe_platform",
-    "Provide a safety platform",
+    "Safe Starting Platform",
     false
+)
+register_option_bool(
+    "safe_minewood",
+    "Minewood is Safe",
+    true
+)
+register_option_bool(
+    "safe_pagodas",
+    "Pagodas are Safe",
+    true
+)
+register_option_bool(
+    "remove_cobwebs",
+    "Remove Cobwebs",
+    true
+)
+register_option_bool(
+    "remove_quillback_pushblocks",
+    "Remove Quillback Pushblocks",
+    true
 )
 
 
@@ -76,6 +112,22 @@ function emit_particles(uid)
     generate_particles(PARTICLEEMITTER.EXPLOSION_SPARKS, uid)
 end
 
+function spawn_lava(x, y)
+    if options.thicc_lava then
+        return spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, x, y)
+    end
+
+    return spawn_liquid(ENT_TYPE.LIQUID_LAVA, x, y)
+end
+
+function bomb_or_break(uid, x, y, layer, should_bomb)
+    if should_bomb then
+        spawn_entity(ENT_TYPE.FX_EXPLOSION, x, y, layer, 0, 0)
+    else
+        kill_entity(uid)
+    end
+end
+
 function make_tile_lava(uid)
     local entity = test_and_get_floor_entity(uid)
     if entity == nil then
@@ -84,14 +136,16 @@ function make_tile_lava(uid)
 
     local x, y, layer = get_position(uid)
 
-    if state.theme == THEME.OLMEC or state.theme == THEME.TIAMAT then
-        spawn_entity(ENT_TYPE.FX_EXPLOSION, x, y, layer, 0, 0)
+    if state.theme == THEME.OLMEC then
+        bomb_or_break(uid, x, y, layer, options.bomb_olmec)
+    elseif state.theme == THEME.TIAMAT then
+        bomb_or_break(uid, x, y, layer, options.bomb_tiamat)
     else
         kill_entity(uid)
         if layer == LAYER.BACK then
             return
         end
-        spawn_liquid(ENT_TYPE.LIQUID_STAGNANT_LAVA, x, y)
+        spawn_lava(x, y)
     end
 end
 
@@ -107,6 +161,20 @@ function get_player_or_mount(player)
 
     local mount = overlay:as_mount()
     return mount
+end
+
+function queue_lava(uid)
+    local callbacks = {}
+
+    table.insert(callbacks, set_timeout(function()
+        emit_particles(uid)
+    end, get_particle_timeout()))
+
+    table.insert(callbacks, set_timeout(function()
+        make_tile_lava(uid)
+    end, options.lava_timer))
+
+    TILES[uid] = callbacks
 end
 
 function maybe_schedule_lava(player)
@@ -138,25 +206,26 @@ function maybe_schedule_lava(player)
         return
     end
 
-    if standing_entity.type.id == ENT_TYPE.FLOOR_DOOR_PLATFORM then
+    if options.safe_minewood and standing_entity.type.id == ENT_TYPE.FLOORSTYLED_MINEWOOD then
         return
     end
 
-    local callbacks = {}
+    if options.safe_pagodas and standing_entity.type.id == ENT_TYPE.FLOORSTYLED_PAGODA then
+        return
+    end
 
-    table.insert(callbacks, set_timeout(function()
-        emit_particles(standing_uid)
-    end, get_particle_timeout()))
-
-    table.insert(callbacks, set_timeout(function()
-        make_tile_lava(standing_uid)
-    end, options.lava_timer))
-
-    TILES[standing_uid] = callbacks
+    queue_lava(standing_uid)
 end 
 
 function is_floor(entity)
     return UNSAFE_FLOORS[entity.type.id] ~= nil
+end
+
+function remove_all(ent_type)
+    uids = get_entities_by_type(ent_type)
+    for _, uid in ipairs(uids) do
+        kill_entity(uid)
+    end
 end
 
 set_callback(function()
@@ -168,7 +237,37 @@ set_callback(function()
             SAFE_FLOOR = player.standing_on_uid
         end
     end
+
+    if options.remove_quillback_pushblocks and state.world == 1 and state.level == 4 then
+        remove_all(ENT_TYPE.ACTIVEFLOOR_PUSHBLOCK)
+    end
+
+    if options.remove_cobwebs then
+        remove_all(ENT_TYPE.ITEM_WEB)
+    end
+
 end, ON.LEVEL)
+
+function clean_up_lava(lava_uid, exit_uids)
+    if state.world == 5 then
+        local x, y, _ = get_position(lava_uid)
+        if y < 1 then
+            kill_entity(lava_uid)
+        end
+    end
+
+    if exit_uids == nil or #exit_uids <= 0 then
+        return
+    end
+
+    for _, exit_uid in ipairs(exit_uids) do
+        local exit = get_entity(exit_uid)
+        local lava = get_entity(lava_uid)
+        if exit:overlaps_with(lava) then
+            kill_entity(lava_uid)
+        end
+    end
+end
 
 set_callback(function()
     for _, player in ipairs(players) do
@@ -177,14 +276,10 @@ set_callback(function()
         end
     end
 
-    -- Ice Caves
-    if state.world == 5 then
-        lavas = get_entities_by_mask(MASK.LAVA)
-        for _, lava in ipairs(lavas) do
-            local x, y, _ = get_position(lava)
-            if y < 1 then
-                kill_entity(lava)
-            end
-        end
+    lava_uids = get_entities_by_mask(MASK.LAVA)
+    exit_uids = get_entities_by_type(ENT_TYPE.FLOOR_DOOR_EXIT)
+    for _, lava_uid in ipairs(lava_uids) do
+        clean_up_lava(lava_uid, exit_uids)
     end
+
 end, ON.FRAME)
