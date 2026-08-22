@@ -1,22 +1,31 @@
 ---@diagnostic disable-next-line: lowercase-global
 meta = {
     name = "Roffto",
-    version = "0.1",
+    version = "0.2",
     description = "Phanto dons a Roffy mask as he haunts the caves. Entry for Spelunky Mod Jam 8.",
     author = "garebear",
 }
 
 local ROFFTO_BASE = ENT_TYPE.MONS_GHOST_SMALL_ANGRY
 
-local ROFFTO_TEXTURE
-do
+local function load_texture(path, size)
     local texture_def = get_texture_definition(TEXTURE.DATA_TEXTURES_MONSTERS_GHOST_0)
-    texture_def.texture_path = "roffto.png"
-    texture_def.width, texture_def.height = 85, 85
-    texture_def.tile_width, texture_def.tile_height = 85, 85
+    texture_def.texture_path = path
+    texture_def.width, texture_def.height = size, size
+    texture_def.tile_width, texture_def.tile_height = size, size
     texture_def.sub_image_offset_x, texture_def.sub_image_offset_y = 0, 0
     texture_def.sub_image_width, texture_def.sub_image_height = 0, 0
-    ROFFTO_TEXTURE = define_texture(texture_def)
+    return define_texture(texture_def)
+end
+
+local BEETLE_TEXTURE = load_texture("beetle_guard.png", 128)
+local ROFFY_TEXTURE = load_texture("roffto.png", 85)
+
+local function roffto_texture()
+    if options.roffy then
+        return ROFFY_TEXTURE
+    end
+    return BEETLE_TEXTURE
 end
 
 local WHITE = Color:white()
@@ -50,6 +59,7 @@ local SPEED = 0.09
 local TURN = 0.005
 
 register_option_bool("hard", "Hard Mode", "Roffto hunts you for carrying anything at all, not just a key.", false)
+register_option_bool("roffy", "Roffy Mode", "Swap the beetle guard back to the original Roffy mask sprite.", false)
 
 local roffto = {
     uid = nil,
@@ -60,6 +70,7 @@ local roffto = {
     angle = 0.0,
     tick = 0,
     fleeing = false,
+    roffy = false,
     flee_timer = 0,
     flee_x = 0.0,
     flee_y = 0.0,
@@ -136,7 +147,7 @@ local function spawn_roffto(target)
         return nil
     end
 
-    ent:set_texture(ROFFTO_TEXTURE)
+    ent:set_texture(roffto_texture())
     ent.width, ent.height = SPRITE_SIZE, SPRITE_SIZE
     ent.hitboxx, ent.hitboxy = HITBOX, HITBOX
     ent.offsetx, ent.offsety = 0.0, 0.0
@@ -148,6 +159,7 @@ local function spawn_roffto(target)
     roffto.angle = 0.0
     roffto.tick = 0
     roffto.fleeing = false
+    roffto.roffy = options.roffy
 
     place(ent)
     ent:set_post_update_state_machine(place)
@@ -261,6 +273,11 @@ set_callback(function()
     end
 
     roffto.tick = roffto.tick + 1
+
+    if roffto.roffy ~= options.roffy then
+        roffto.roffy = options.roffy
+        ent:set_texture(roffto_texture())
+    end
 
     if target then
         roffto.fleeing = false
